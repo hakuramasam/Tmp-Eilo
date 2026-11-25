@@ -9,6 +9,12 @@ def test_calculator_arithmetic():
     assert safe_calculate("(2 + 3) * 4") == 20
 
 
+@pytest.mark.parametrize("expression", ["1e309", "1e308 * 1e308", "9" * 150])
+def test_calculator_rejects_non_finite_and_oversized_values(expression):
+    with pytest.raises(ValueError):
+        safe_calculate(expression)
+
+
 def test_calculator_rejects_code():
     with pytest.raises(ValueError):
         safe_calculate("__import__('os').system('echo unsafe')")
