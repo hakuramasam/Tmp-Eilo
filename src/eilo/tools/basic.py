@@ -24,6 +24,8 @@ _MAX_RESULT = 10**100
 
 
 def _check_number(value: int | float) -> int | float:
+    if type(value) not in (int, float):
+        raise ValueError("Only real numeric results are supported.")
     if isinstance(value, float) and not math.isfinite(value):
         raise ValueError("Non-finite calculator results are not allowed.")
     if abs(value) > _MAX_RESULT:
