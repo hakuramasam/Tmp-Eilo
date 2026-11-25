@@ -5,7 +5,7 @@ Eilo is a modular, safety-conscious AI agent foundation built with Python 3.11+,
 ## Features
 - Async OpenAI-compatible LLM adapter using HTTPX.
 - Pydantic Settings configuration via environment variables and optional `.env`.
-- Bounded tool-call loop with JSON tool schemas.
+- Bounded tool-call loop with JSON Schema-validated tool arguments and sync/async handlers.
 - Fail-closed approval manager for moderate/high-risk actions.
 - Safe arithmetic calculator and UTC clock tools.
 - SQLite note storage with simple keyword search and deletion.
