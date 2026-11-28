@@ -1,12 +1,15 @@
-"""Tool registration and risk-aware execution."""
+"""Tool registration, JSON-schema validation, and risk-aware execution."""
 
+import inspect
 import json
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
+
+from jsonschema import Draft202012Validator, ValidationError
 
 from ..approvals import ApprovalManager, RiskLevel
 
-ToolHandler = Callable[[dict[str, Any]], Any | Awaitable[Any]]
+ToolHandler = Callable[[dict[str, Any]], Any]
 
 
 @dataclass
@@ -18,7 +21,14 @@ class Tool:
     handler: ToolHandler
 
     def to_api_schema(self) -> dict[str, Any]:
-        return {"type": "function", "function": {"name": self.name, "description": self.description, "parameters": self.parameters}}
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            },
+        }
 
 
 class ToolRegistry:
@@ -29,6 +39,7 @@ class ToolRegistry:
     def register(self, tool: Tool) -> None:
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name}")
+        Draft202012Validator.check_schema(tool.parameters)
         self._tools[tool.name] = tool
 
     def schemas(self) -> list[dict[str, Any]]:
@@ -38,12 +49,27 @@ class ToolRegistry:
         tool = self._tools.get(name)
         if tool is None:
             raise KeyError(f"Unknown tool: {name}")
+
         try:
             parsed = json.loads(arguments) if isinstance(arguments, str) else arguments
-        except json.JSONDecodeError as exc:
+        except (json.JSONDecodeError, TypeError) as exc:
             raise ValueError("Tool arguments must be valid JSON.") from exc
+
         if not isinstance(parsed, dict):
             raise ValueError("Tool arguments must be a JSON object.")
+
+        try:
+            Draft202012Validator(tool.parameters).validate(parsed)
+        except ValidationError as exc:
+            location = ".".join(str(part) for part in exc.absolute_path) or "<root>"
+            raise ValueError(
+                f"Invalid arguments for tool {name!r} at {location}: {exc.message}"
+            ) from exc
+
         if not await self.approvals.is_approved(name, tool.risk, parsed):
             raise PermissionError(f"Approval required for tool: {name}")
-        return await tool.handler(parsed)
+
+        result = tool.handler(parsed)
+        if inspect.isawaitable(result):
+            return await result
+        return result
